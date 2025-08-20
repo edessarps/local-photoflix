@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-    <!-- 1. AJOUT DU SCRIPT GOOGLE CAST -->
+    <!-- AJOUT DU SCRIPT GOOGLE CAST -->
     <script type="text/javascript" src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
         body {
@@ -49,7 +49,7 @@
             <h1 class="text-3xl font-bold text-red-600 tracking-wider">PHOTOFLIX</h1>
             <div class="flex items-center space-x-6">
                 <i class="fas fa-search text-xl cursor-pointer"></i>
-                <!-- 2. AJOUT DU BOUTON CASTER -->
+                <!-- AJOUT DU BOUTON CASTER -->
                 <google-cast-launcher class="text-2xl"></google-cast-launcher>
                 <i class="fas fa-bell text-xl cursor-pointer"></i>
                 <div class="w-8 h-8 bg-blue-500 rounded-md"></div>
@@ -131,9 +131,8 @@
 
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz208pvfUdkeiUpbwlqJkWwEHYVYUJV6RA58TYISD4ZRPMFrysEpyhgSIGuCMX8l3yleg/exec";
+        const SCRIPT_URL = "VOTRE_URL_DE_SCRIPT_ICI"; // N'oubliez pas de remettre votre URL !
         
-        // --- VARIABLES GLOBALES ---
         let albumsData = {};
         let currentAlbumImages = [];
         let currentIndex = 0;
@@ -145,7 +144,7 @@
         const slideshowOverlay = document.getElementById('slideshow-overlay');
         const castRemoteOverlay = document.getElementById('cast-remote-overlay');
         
-        // --- 3. INITIALISATION DU FRAMEWORK CAST ---
+        // INITIALISATION DU FRAMEWORK CAST
         window['__onGCastApiAvailable'] = function(isAvailable) {
             if (isAvailable) {
                 initializeCastApi();
@@ -164,9 +163,7 @@
             
             playerController.addEventListener(
                 cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
-                () => {
-                    updateCastUI();
-                }
+                () => updateCastUI()
             );
              playerController.addEventListener(
                 cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED,
@@ -187,7 +184,7 @@
                 const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
                 const media = castSession.getMediaSession();
                 if (media && media.media) {
-                    document.getElementById('cast-album-title').textContent = media.media.metadata.title;
+                    document.getElementById('cast-album-title').textContent = media.media.metadata.title.split(' - ')[0];
                     document.getElementById('cast-device-name').textContent = castSession.getCastDevice().friendlyName;
                     castRemoteOverlay.classList.remove('hidden');
                     castRemoteOverlay.classList.add('flex');
@@ -198,7 +195,6 @@
             }
         }
 
-        // --- INITIALISATION DE L'APPLICATION ---
         document.addEventListener('DOMContentLoaded', () => {
             loadAlbums();
             setupHeaderScroll();
@@ -227,12 +223,11 @@
         }
         
         function showError(message) {
-            albumContainer.innerHTML = `<div class="text-center text-red-500"><h2 class="text-2xl font-bold mb-2">Erreur de chargement</h2><p>${message}</p><p class="mt-4 text-sm text-gray-400">Vérifiez l'URL du script, les autorisations de partage de votre dossier Google Drive et la structure de votre fichier Résumé.txt.</p></div>`;
+            albumContainer.innerHTML = `<div class="text-center text-red-500"><h2 class="text-2xl font-bold mb-2">Erreur de chargement</h2><p>${message}</p></div>`;
             document.getElementById('hero-section').style.display = 'none';
         }
 
         function populateAlbums() {
-            // ... (code inchangé)
             const categories = [...new Set(Object.values(albumsData).map(a => a.category))];
             categories.forEach(category => {
                 const row = document.createElement('div');
@@ -254,7 +249,6 @@
         }
 
         function setupHero() {
-            // ... (code inchangé)
             const heroAlbumTitle = Object.keys(albumsData)[0];
             if (!heroAlbumTitle) return;
             const heroAlbumData = albumsData[heroAlbumTitle];
@@ -265,7 +259,6 @@
         }
 
         function setupHeaderScroll() {
-            // ... (code inchangé)
             const header = document.getElementById('main-header');
             window.addEventListener('scroll', () => {
                 header.style.backgroundColor = window.scrollY > 50 ? '#141414' : 'transparent';
@@ -273,7 +266,6 @@
         }
 
         function openModal(albumTitle) {
-            // ... (code inchangé)
             const data = albumsData[albumTitle];
             document.getElementById('modal-img').src = data.images[0];
             document.getElementById('modal-title').textContent = albumTitle;
@@ -292,7 +284,6 @@
             document.body.style.overflow = 'auto';
         }
 
-        // --- 4. MISE À JOUR DE LA LOGIQUE DU DIAPORAMA ---
         function startSlideshow(albumTitle) {
             if (isCasting()) {
                 castSlideshow(albumTitle);
@@ -318,7 +309,7 @@
             });
             
             const request = new chrome.cast.media.QueueLoadRequest(queueItems);
-            request.repeatMode = chrome.cast.media.RepeatMode.ALL; // Boucle sur les photos
+            request.repeatMode = chrome.cast.media.RepeatMode.ALL;
             
             castSession.loadMedia(request).then(
                 () => { 
@@ -415,7 +406,6 @@
         }
         
         function setupTouchControls() {
-            // ... (code inchangé)
             let touchstartX = 0;
             let touchendX = 0;
             slideshowOverlay.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true });

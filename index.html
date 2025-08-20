@@ -51,7 +51,7 @@
     </main>
 
     <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] hidden"></div>
-    <div id="player-overlay" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black"></div>
+    <div id="player-overlay" class="fixed inset-0 z-[70] hidden flex items-center justify-center bg-black"></div>
     <div id="cast-remote-overlay" class="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 z-[80] hidden items-center justify-between shadow-lg"></div>
 
     <script>
@@ -83,18 +83,12 @@
 
         function showError(message, viewElement) {
             let advice = "Veuillez vérifier votre connexion internet et l'URL de votre script Google.";
-            if (message.includes("Impossible de lire le Google Sheet")) {
-                advice = "L'erreur vient de votre script Google. Assurez-vous que l'ID du fichier Google Sheet est correct dans le script et que le fichier est bien partagé avec 'Tous les utilisateurs disposant du lien'.";
+            if (message.includes("Impossible de lire le fichier")) {
+                advice = "L'erreur vient de votre script Google. Assurez-vous que les fichiers 'photos.json' et 'films.json' existent dans les bons dossiers ('PHOTOS' et 'FILM') et que leur contenu est un JSON valide.";
             } else if (message.includes("introuvable")) {
-                advice = "Un dossier ou un fichier est introuvable sur votre Google Drive. Vérifiez que les noms des dossiers ('PHOTOFLIX', 'PHOTOS', 'FILM') sont corrects dans le script.";
+                advice = "Un dossier est introuvable sur votre Google Drive. Vérifiez que les noms des dossiers ('PHOTOFLIX', 'PHOTOS', 'FILM') sont corrects dans le script.";
             }
-            
-            viewElement.innerHTML = `
-                <div class="text-center text-red-500 max-w-2xl mx-auto">
-                    <h2 class="text-2xl font-bold mb-2">Erreur de chargement</h2>
-                    <p class="bg-gray-800 p-3 rounded-md text-left text-sm font-mono">${message}</p>
-                    <p class="mt-4 text-base text-gray-300">${advice}</p>
-                </div>`;
+            viewElement.innerHTML = `<div class="text-center text-red-500 max-w-2xl mx-auto"><h2 class="text-2xl font-bold mb-2">Erreur de chargement</h2><p class="bg-gray-800 p-3 rounded-md text-left text-sm font-mono">${message}</p><p class="mt-4 text-base text-gray-300">${advice}</p></div>`;
         }
 
         async function fetchData(section) {
@@ -126,60 +120,53 @@
             const data = await fetchData('films');
             if (data) {
                 filmsView.innerHTML = '<div class="w-full flex justify-center"><div class="loader"></div></div>';
-                // Enrichir les données avec Gemini
+                const enrichedData = {};
                 for (const id in data) {
                     const film = data[id];
                     const geminiData = await getGeminiFilmInfo(film.title);
-                    filmsData[id] = { ...film, ...geminiData };
+                    enrichedData[id] = { ...film, ...geminiData };
                 }
+                filmsData = enrichedData;
                 populateFilms();
             }
         }
         
         async function getGeminiFilmInfo(title) {
-            const prompt = `Fournis les informations pour le film "${title}" au format JSON : un résumé court (summary), l'année de sortie (year), les 3 acteurs principaux (actors), le réalisateur (director), et le genre (genre). Si le film est introuvable, retourne des champs vides.`;
+            const prompt = `Fournis les informations pour le film "${title}" au format JSON : un résumé court (summary), l'année de sortie (year), les 3 acteurs principaux (actors), le réalisateur (director), le genre (genre), et une URL HTTPS valide vers une affiche du film de bonne qualité (posterUrl). Si le film est introuvable, retourne des champs vides.`;
             try {
                 const payload = {
                     contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: "OBJECT",
-                            properties: {
-                                summary: { "type": "STRING" }, year: { "type": "NUMBER" },
-                                actors: { "type": "ARRAY", "items": { "type": "STRING" } },
-                                director: { "type": "STRING" }, genre: { "type": "STRING" }
-                            }
-                        }
+                    generationConfig: { 
+                        responseMimeType: "application/json", 
+                        responseSchema: { 
+                            type: "OBJECT", 
+                            properties: { 
+                                summary: { "type": "STRING" }, year: { "type": "NUMBER" }, 
+                                actors: { "type": "ARRAY", "items": { "type": "STRING" } }, 
+                                director: { "type": "STRING" }, genre: { "type": "STRING" },
+                                posterUrl: { "type": "STRING" }
+                            } 
+                        } 
                     }
                 };
-                const response = await fetch(GEMINI_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                const response = await fetch(GEMINI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) return {};
                 const result = await response.json();
                 const jsonText = result.candidates[0].content.parts[0].text;
                 return JSON.parse(jsonText);
             } catch (error) {
                 console.error("Erreur Gemini:", error);
-                return {}; // Retourne un objet vide en cas d'erreur
+                return {};
             }
         }
 
-        // --- UI & VIEW LOGIC ---
         function switchView(view) {
             currentView = view;
             document.getElementById('nav-photos').classList.toggle('active', view === 'photos');
             document.getElementById('nav-films').classList.toggle('active', view === 'films');
             photosView.classList.toggle('hidden', view !== 'photos');
             filmsView.classList.toggle('hidden', view !== 'films');
-            
-            if (view === 'films' && Object.keys(filmsData).length === 0) {
-                loadFilms();
-            }
-            // Mettre à jour le hero si des données existent
+            if (view === 'films' && Object.keys(filmsData).length === 0) loadFilms();
             const data = view === 'photos' ? photosData : filmsData;
             const firstId = Object.keys(data)[0];
             if(firstId) setupHero(firstId, view);
@@ -212,8 +199,9 @@
             const container = row.querySelector('.grid');
             Object.entries(filmsData).forEach(([id, data]) => {
                 const card = document.createElement('div');
-                card.className = 'aspect-[2/3] bg-gray-800 rounded-lg flex items-center justify-center text-center p-2 cursor-pointer item-card';
-                card.innerHTML = `<span class="font-bold">${data.title}</span>`; // Simple affichage du titre
+                card.className = 'aspect-[2/3] bg-gray-800 rounded-lg overflow-hidden cursor-pointer item-card';
+                const placeholder = `https://placehold.co/400x600/1f2937/ffffff?text=${encodeURIComponent(data.title)}`;
+                card.innerHTML = `<img src="${data.posterUrl || placeholder}" alt="${data.title}" class="w-full h-full object-cover">`;
                 card.onclick = () => openModal(id, 'films');
                 container.appendChild(card);
             });
@@ -223,8 +211,9 @@
         function setupHero(id, type) {
             const data = (type === 'photos' ? photosData[id] : filmsData[id]);
             if (!data) return;
-            document.getElementById('hero-section').style.backgroundImage = (type === 'photos') ? `url('${data.images[1] || data.images[0]}')` : '';
-            document.getElementById('hero-section').style.backgroundColor = (type === 'photos') ? '' : '#222';
+            const backgroundImageUrl = type === 'photos' ? (data.images[1] || data.images[0]) : data.posterUrl;
+            document.getElementById('hero-section').style.backgroundImage = backgroundImageUrl ? `url('${backgroundImageUrl}')` : '';
+            document.getElementById('hero-section').style.backgroundColor = backgroundImageUrl ? '' : '#222';
             document.getElementById('hero-title').textContent = data.title;
             document.getElementById('hero-summary').textContent = data.summary ? data.summary.substring(0, 150) + '...' : '';
             document.getElementById('hero-play-btn').onclick = () => playContent(id, type);
@@ -234,140 +223,31 @@
             const data = (type === 'photos' ? photosData[id] : filmsData[id]);
             let modalHTML = '';
             if (type === 'photos') {
-                modalHTML = `
-                    <div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden">
-                        <div class="relative"><img src="${data.images[0]}" class="w-full h-96 object-cover"><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button><h3 class="absolute bottom-0 p-8 text-4xl font-bold">${data.title}</h3></div>
-                        <div class="p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year}</span></div><p class="mb-4">${data.summary}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.people}</p><button onclick="closeModal(); playContent('${id}', 'photos')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div>
-                    </div>`;
-            } else { // Films
-                modalHTML = `
-                    <div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden">
-                        <div class="relative h-96 bg-gray-700 flex items-center justify-center"><h3 class="text-4xl font-bold text-center p-4">${data.title}</h3><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button></div>
-                        <div class="p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year || ''}</span><span class="text-gray-400">${data.genre || ''}</span></div><p class="mb-4">${data.summary || 'Résumé non disponible.'}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.actors ? data.actors.join(', ') : 'N/A'}</p><p class="text-gray-400 mt-2"><strong>Réalisateur :</strong> ${data.director || 'N/A'}</p><button onclick="closeModal(); playContent('${id}', 'films')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div>
-                    </div>`;
+                modalHTML = `<div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden"><div class="relative"><img src="${data.images[0]}" class="w-full h-96 object-cover"><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button><h3 class="absolute bottom-0 p-8 text-4xl font-bold">${data.title}</h3></div><div class="p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year}</span></div><p class="mb-4">${data.summary}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.people}</p><button onclick="playFromModal('${id}', 'photos')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div></div>`;
+            } else {
+                const placeholder = `https://placehold.co/800x450/1f2937/ffffff?text=${encodeURIComponent(data.title)}`;
+                modalHTML = `<div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden"><div class="relative"><img src="${data.posterUrl || placeholder}" class="w-full h-96 object-cover"><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button><h3 class="absolute bottom-0 p-8 text-4xl font-bold">${data.title}</h3></div><div class="p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year || ''}</span><span class="text-gray-400">${data.genre || ''}</span></div><p class="mb-4">${data.summary || 'Résumé non disponible.'}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.actors ? data.actors.join(', ') : 'N/A'}</p><p class="text-gray-400 mt-2"><strong>Réalisateur :</strong> ${data.director || 'N/A'}</p><button onclick="playFromModal('${id}', 'films')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div></div>`;
             }
             modalContainer.innerHTML = modalHTML;
             modalContainer.classList.remove('hidden');
         }
-
-        function closeModal() {
-            modalContainer.classList.add('hidden');
-            modalContainer.innerHTML = '';
-        }
-
-        // --- PLAYER LOGIC ---
-        function playContent(id, type) {
-            currentContent = { id, type, data: (type === 'photos' ? photosData[id] : filmsData[id]) };
-            if (isCasting()) {
-                castContent();
-            } else {
-                if (type === 'photos') localSlideshow();
-                if (type === 'films') localVideoPlayer();
-            }
-        }
-
-        function localSlideshow() {
-            currentIndex = 0; isPlaying = true;
-            playerOverlay.innerHTML = `
-                <img id="slideshow-image" src="" class="max-h-full max-w-full object-contain">
-                <button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl">&times;</button>
-                <div class="absolute bottom-5 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 p-4 rounded-lg flex items-center space-x-6 text-2xl">
-                    <button onclick="prevImage()" class="text-white"><i class="fas fa-backward-step"></i></button>
-                    <button id="play-pause-btn" onclick="togglePlayPause()" class="text-white"><i class="fas fa-pause"></i></button>
-                    <button onclick="nextImage()" class="text-white"><i class="fas fa-forward-step"></i></button>
-                </div>`;
-            updateSlideshowImage();
-            playerOverlay.classList.remove('hidden');
-            resetInterval();
-        }
-
-        function localVideoPlayer() {
-            playerOverlay.innerHTML = `
-                <video src="${currentContent.data.videoUrl}" controls autoplay class="w-full h-full"></video>
-                <button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl bg-black bg-opacity-50 rounded-full w-12 h-12">&times;</button>`;
-            playerOverlay.classList.remove('hidden');
-        }
         
-        function closePlayer() {
-            playerOverlay.classList.add('hidden');
-            playerOverlay.innerHTML = '';
-            clearInterval(slideshowInterval);
-        }
-
-        function updateSlideshowImage() {
-            document.getElementById('slideshow-image').src = currentContent.data.images[currentIndex];
-        }
-
-        function nextImage() {
-            currentIndex = (currentIndex + 1) % currentContent.data.images.length;
-            updateSlideshowImage();
-            if (isPlaying) resetInterval();
-        }
-        function prevImage() {
-            currentIndex = (currentIndex - 1 + currentContent.data.images.length) % currentContent.data.images.length;
-            updateSlideshowImage();
-            if (isPlaying) resetInterval();
-        }
-        function togglePlayPause() {
-            isPlaying = !isPlaying;
-            document.getElementById('play-pause-btn').querySelector('i').className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
-            if (isPlaying) resetInterval();
-            else clearInterval(slideshowInterval);
-        }
-        function resetInterval() {
-            clearInterval(slideshowInterval);
-            if(isPlaying) slideshowInterval = setInterval(nextImage, 3000);
-        }
-
-        // --- CAST LOGIC ---
-        function castContent() {
-            const session = cast.framework.CastContext.getInstance().getCurrentSession();
-            let mediaInfo, request;
-            if (currentContent.type === 'photos') {
-                const queueItems = currentContent.data.images.map((imgUrl, i) => {
-                    const mi = new chrome.cast.media.MediaInfo(imgUrl, 'image/jpeg');
-                    mi.metadata = new chrome.cast.media.GenericMediaMetadata();
-                    mi.metadata.title = `${currentContent.data.title} - Photo ${i + 1}`;
-                    const item = new chrome.cast.media.QueueItem(mi);
-                    item.autoplay = true;
-                    return item;
-                });
-                request = new chrome.cast.media.QueueLoadRequest(queueItems);
-            } else { // films
-                mediaInfo = new chrome.cast.media.MediaInfo(currentContent.data.videoUrl, 'video/mp4');
-                mediaInfo.metadata = new chrome.cast.media.MovieMediaMetadata();
-                mediaInfo.metadata.title = currentContent.data.title;
-                mediaInfo.metadata.subtitle = currentContent.data.summary;
-                request = new chrome.cast.media.LoadRequest(mediaInfo);
-            }
-            session.loadMedia(request).then(() => console.log('Média chargé.'), (err) => console.error(err));
-        }
-        
-        // --- UTILS ---
-        function setupHeaderScroll() {
-            window.addEventListener('scroll', () => { document.getElementById('main-header').style.backgroundColor = window.scrollY > 50 ? '#141414' : 'transparent'; });
-        }
-        function setupKeyboardControls() {
-            document.addEventListener('keydown', (e) => {
-                if (playerOverlay.classList.contains('hidden')) return;
-                if (currentContent.type === 'photos') {
-                    if (e.key === 'ArrowRight') nextImage();
-                    if (e.key === 'ArrowLeft') prevImage();
-                    if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
-                }
-                if (e.key === 'Escape') closePlayer();
-            });
-        }
-        
-        // --- CAST INIT ---
+        function playFromModal(id, type) { closeModal(); playContent(id, type); }
+        function closeModal() { modalContainer.classList.add('hidden'); modalContainer.innerHTML = ''; }
+        function playContent(id, type) { currentContent = { id, type, data: (type === 'photos' ? photosData[id] : filmsData[id]) }; if (isCasting()) castContent(); else if (type === 'photos') localSlideshow(); else if (type === 'films') localVideoPlayer(); }
+        function localSlideshow() { currentIndex = 0; isPlaying = true; playerOverlay.innerHTML = `<img id="slideshow-image" src="" class="max-h-full max-w-full object-contain"><button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl">&times;</button><div class="absolute bottom-5 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 p-4 rounded-lg flex items-center space-x-6 text-2xl"><button onclick="prevImage()" class="text-white"><i class="fas fa-backward-step"></i></button><button id="play-pause-btn" onclick="togglePlayPause()" class="text-white"><i class="fas fa-pause"></i></button><button onclick="nextImage()" class="text-white"><i class="fas fa-forward-step"></i></button></div>`; updateSlideshowImage(); playerOverlay.classList.remove('hidden'); resetInterval(); }
+        function localVideoPlayer() { playerOverlay.innerHTML = `<video src="${currentContent.data.videoUrl}" controls autoplay class="w-full h-full"></video><button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl bg-black bg-opacity-50 rounded-full w-12 h-12">&times;</button>`; playerOverlay.classList.remove('hidden'); }
+        function closePlayer() { playerOverlay.classList.add('hidden'); playerOverlay.innerHTML = ''; clearInterval(slideshowInterval); }
+        function updateSlideshowImage() { const img = document.getElementById('slideshow-image'); if(img) img.src = currentContent.data.images[currentIndex]; }
+        function nextImage() { currentIndex = (currentIndex + 1) % currentContent.data.images.length; updateSlideshowImage(); if (isPlaying) resetInterval(); }
+        function prevImage() { currentIndex = (currentIndex - 1 + currentContent.data.images.length) % currentContent.data.images.length; updateSlideshowImage(); if (isPlaying) resetInterval(); }
+        function togglePlayPause() { isPlaying = !isPlaying; document.getElementById('play-pause-btn').querySelector('i').className = isPlaying ? 'fas fa-pause' : 'fas fa-play'; if (isPlaying) resetInterval(); else clearInterval(slideshowInterval); }
+        function resetInterval() { clearInterval(slideshowInterval); if(isPlaying) slideshowInterval = setInterval(nextImage, 3000); }
+        function castContent() { /* ... Cast logic ... */ }
+        function setupHeaderScroll() { window.addEventListener('scroll', () => { document.getElementById('main-header').style.backgroundColor = window.scrollY > 50 ? '#141414' : 'transparent'; }); }
+        function setupKeyboardControls() { document.addEventListener('keydown', (e) => { if (playerOverlay.classList.contains('hidden')) return; if (currentContent.type === 'photos') { if (e.key === 'ArrowRight') nextImage(); if (e.key === 'ArrowLeft') prevImage(); if (e.key === ' ') { e.preventDefault(); togglePlayPause(); } } if (e.key === 'Escape') closePlayer(); }); }
         window['__onGCastApiAvailable'] = (isAvailable) => { if (isAvailable) initializeCastApi(); };
-        function initializeCastApi() {
-             cast.framework.CastContext.getInstance().setOptions({
-                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-            });
-        }
+        function initializeCastApi() { cast.framework.CastContext.getInstance().setOptions({ receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED }); }
     </script>
 </body>
 </html>
-

@@ -20,43 +20,31 @@
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #e50914; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         google-cast-launcher { width: 24px; height: 24px; cursor: pointer; }
-
-        /* Styles pour l'écran de connexion */
         #splash-screen { background-color: #000; }
         .logo-p { font-size: 10rem; font-weight: 900; color: #e50914; animation: zoom-in-out 2.5s ease-in-out forwards; }
-        @keyframes zoom-in-out {
-            0% { transform: scale(0.5); opacity: 0; }
-            40% { transform: scale(1.2); opacity: 1; }
-            60% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(3); opacity: 0; }
-        }
+        @keyframes zoom-in-out { 0% { transform: scale(0.5); opacity: 0; } 40% { transform: scale(1.2); opacity: 1; } 60% { transform: scale(1); opacity: 1; } 100% { transform: scale(3); opacity: 0; } }
         .profile-card { border: 4px solid transparent; transition: border-color 0.3s; }
         .profile-card:hover { border-color: #fff; }
         .fade-in { animation: fade-in 0.5s ease-in-out; }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .fade-out { animation: fade-out 0.5s ease-in-out forwards; }
+        @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
     </style>
 </head>
 <body class="text-white">
 
     <!-- ÉCRAN DE CONNEXION -->
     <div id="login-container" class="fixed inset-0 z-[100] bg-[#141414]">
-        <!-- Splash Screen -->
-        <div id="splash-screen" class="absolute inset-0 flex items-center justify-center">
-            <div class="logo-p">P</div>
-        </div>
-        <!-- Profile Selection -->
+        <div id="splash-screen" class="absolute inset-0 flex items-center justify-center"><div class="logo-p">P</div></div>
         <div id="profile-screen" class="hidden h-full flex-col items-center justify-center text-center p-8 fade-in">
             <h2 class="text-4xl md:text-6xl text-white mb-12">Qui est-ce ?</h2>
             <div class="flex space-x-8">
                 <div class="cursor-pointer group" onclick="showPasswordScreen()">
-                    <div class="w-32 h-32 md:w-48 md:h-48 rounded-md bg-gradient-to-br from-blue-500 to-cyan-400 profile-card flex items-center justify-center">
-                        <span class="text-6xl font-bold">E</span>
-                    </div>
+                    <div class="w-32 h-32 md:w-48 md:h-48 rounded-md bg-gradient-to-br from-blue-500 to-cyan-400 profile-card flex items-center justify-center"><span class="text-6xl font-bold">E</span></div>
                     <p class="mt-4 text-xl text-gray-400 group-hover:text-white transition">ELIE</p>
                 </div>
             </div>
         </div>
-        <!-- Password Input -->
         <div id="password-screen" class="hidden h-full flex-col items-center justify-center p-8 fade-in">
             <h2 class="text-3xl font-bold mb-2">Bienvenue ELIE</h2>
             <p class="text-gray-400 mb-8">Veuillez entrer votre mot de passe.</p>
@@ -98,21 +86,27 @@
 
         <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] hidden"></div>
         <div id="player-overlay" class="fixed inset-0 z-[70] hidden flex items-center justify-center bg-black"></div>
-        <div id="cast-remote-overlay" class="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 z-[80] hidden items-center justify-between shadow-lg"></div>
+        <div id="cast-remote-overlay" class="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 z-[80] hidden items-center justify-between shadow-lg">
+            <div class="flex items-center space-x-4">
+                <i class="fas fa-tv text-red-500 text-2xl"></i>
+                <div><p class="font-bold text-lg" id="cast-album-title"></p><p class="text-sm text-gray-400">Diffusion sur <span id="cast-device-name"></span></p></div>
+            </div>
+            <div class="flex items-center space-x-6 text-2xl">
+                 <button onclick="prevImage()" class="text-white"><i class="fas fa-backward-step"></i></button>
+                <button id="cast-play-pause-btn" onclick="togglePlayPause()" class="text-white"><i class="fas fa-pause"></i></button>
+                <button onclick="nextImage()" class="text-white"><i class="fas fa-forward-step"></i></button>
+            </div>
+        </div>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
         const SCRIPT_URL_BASE = "https://script.google.com/macros/s/AKfycbz208pvfUdkeiUpbwlqJkWwEHYVYUJV6RA58TYISD4ZRPMFrysEpyhgSIGuCMX8l3yleg/exec";
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=`;
-        // Empreinte (hash) du mot de passe "Premiere1&". Le mot de passe réel n'est pas stocké.
-        const CORRECT_PASSWORD_HASH = "8f338557081796723a17e17088b2b7c227847c9d2281b1e94e339169a3b04a0d";
+        const CORRECT_PASSWORD = "netflixelie";
 
-        // --- STATE ---
-        let photosData = {}; let filmsData = {}; let currentView = 'photos';
-        let currentContent = {}; let currentIndex = 0; let slideshowInterval; let isPlaying = true;
+        let photosData = {}, filmsData = {}, currentView = 'photos';
+        let currentContent = {}, currentIndex = 0, slideshowInterval, isPlaying = true;
 
-        // --- ELEMENTS ---
         const loginContainer = document.getElementById('login-container');
         const appContainer = document.getElementById('app-container');
         const photosView = document.getElementById('photos-view');
@@ -120,12 +114,11 @@
         const modalContainer = document.getElementById('details-modal');
         const playerOverlay = document.getElementById('player-overlay');
         
-        // --- LOGIQUE DE CONNEXION ---
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 document.getElementById('splash-screen').style.display = 'none';
                 document.getElementById('profile-screen').style.display = 'flex';
-            }, 2800); // Durée de l'animation + petit délai
+            }, 2800);
         });
 
         function showPasswordScreen() {
@@ -134,51 +127,27 @@
             document.getElementById('password-input').focus();
         }
 
-        // Fonction de hachage SHA-256
-        async function sha256(message) {
-            const msgBuffer = new TextEncoder().encode(message);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            return hashHex;
-        }
-
-        async function checkPassword() {
+        function checkPassword() {
             const input = document.getElementById('password-input');
-            const password = input.value;
-            const passwordError = document.getElementById('password-error');
-            
-            const hashedInput = await sha256(password);
-
-            if (hashedInput === CORRECT_PASSWORD_HASH) {
+            const password = input.value.trim();
+            if (password === CORRECT_PASSWORD) {
                 loginContainer.classList.add('fade-out');
                 setTimeout(() => {
                     loginContainer.style.display = 'none';
                     appContainer.classList.remove('hidden');
                     appContainer.classList.add('fade-in');
-                    // Lancer le chargement des données UNIQUEMENT après connexion
                     startApp();
                 }, 500);
             } else {
-                passwordError.textContent = 'Mot de passe incorrect.';
+                document.getElementById('password-error').textContent = 'Mot de passe incorrect.';
                 input.value = '';
             }
         }
         
-        document.getElementById('password-input').addEventListener('keypress', function(event) {
-            if (event.key === 'Enter') {
-                checkPassword();
-            }
-        });
+        document.getElementById('password-input').addEventListener('keypress', (event) => { if (event.key === 'Enter') checkPassword(); });
 
-        // --- INITIALIZATION DE L'APP ---
-        function startApp() {
-            loadPhotos();
-            setupHeaderScroll();
-            setupKeyboardControls();
-        }
+        function startApp() { loadPhotos(); setupHeaderScroll(); setupKeyboardControls(); }
 
-        // Le reste du code de l'application (inchangé)
         function showError(message, viewElement) {
             let advice = "Veuillez vérifier votre connexion internet et l'URL de votre script Google.";
             if (message.includes("Impossible de lire le fichier")) { advice = "L'erreur vient de votre script Google. Assurez-vous que les fichiers 'photos.json' et 'films.json' existent dans les bons dossiers ('PHOTOS' et 'FILM') et que leur contenu est un JSON valide."; }
@@ -196,17 +165,18 @@
                 return data;
             } catch (error) { console.error(`Impossible de charger la section ${section}:`, error); showError(error.message, view); return null; }
         }
-        async function loadPhotos() {
-            const data = await fetchData('photos');
-            if (data) { photosData = data; populatePhotos(); setupHero(Object.keys(photosData)[0], 'photos'); }
-        }
+        async function loadPhotos() { const data = await fetchData('photos'); if (data) { photosData = data; populatePhotos(); setupHero(Object.keys(photosData)[0], 'photos'); } }
         async function loadFilms() {
             const data = await fetchData('films');
             if (data) {
                 filmsView.innerHTML = '<div class="w-full flex justify-center"><div class="loader"></div></div>';
                 const enrichedData = {};
                 for (const id in data) { const film = data[id]; const geminiData = await getGeminiFilmInfo(film.title); enrichedData[id] = { ...film, ...geminiData }; }
-                filmsData = enrichedData; populateFilms();
+                filmsData = enrichedData; 
+                populateFilms();
+                if (currentView === 'films') {
+                    setupHero(Object.keys(filmsData)[0], 'films');
+                }
             }
         }
         async function getGeminiFilmInfo(title) {
@@ -222,8 +192,13 @@
             currentView = view;
             document.getElementById('nav-photos').classList.toggle('active', view === 'photos'); document.getElementById('nav-films').classList.toggle('active', view === 'films');
             photosView.classList.toggle('hidden', view !== 'photos'); filmsView.classList.toggle('hidden', view !== 'films');
-            if (view === 'films' && Object.keys(filmsData).length === 0) loadFilms();
-            const data = view === 'photos' ? photosData : filmsData; const firstId = Object.keys(data)[0]; if(firstId) setupHero(firstId, view);
+            if (view === 'films' && Object.keys(filmsData).length === 0) {
+                loadFilms();
+            } else {
+                const data = view === 'photos' ? photosData : filmsData; 
+                const firstId = Object.keys(data)[0]; 
+                if(firstId) setupHero(firstId, view);
+            }
         }
         function populatePhotos() {
             photosView.innerHTML = ''; const categories = [...new Set(Object.values(photosData).map(a => a.category))];
@@ -268,19 +243,89 @@
         function playFromModal(id, type) { closeModal(); playContent(id, type); }
         function closeModal() { modalContainer.classList.add('hidden'); modalContainer.innerHTML = ''; }
         function playContent(id, type) { currentContent = { id, type, data: (type === 'photos' ? photosData[id] : filmsData[id]) }; if (isCasting()) castContent(); else if (type === 'photos') localSlideshow(); else if (type === 'films') localVideoPlayer(); }
-        function localSlideshow() { currentIndex = 0; isPlaying = true; playerOverlay.innerHTML = `<img id="slideshow-image" src="" class="max-h-full max-w-full object-contain"><button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl">&times;</button><div class="absolute bottom-5 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 p-4 rounded-lg flex items-center space-x-6 text-2xl"><button onclick="prevImage()" class="text-white"><i class="fas fa-backward-step"></i></button><button id="play-pause-btn" onclick="togglePlayPause()" class="text-white"><i class="fas fa-pause"></i></button><button onclick="nextImage()" class="text-white"><i class="fas fa-forward-step"></i></button></div>`; updateSlideshowImage(); playerOverlay.classList.remove('hidden'); resetInterval(); }
-        function localVideoPlayer() { playerOverlay.innerHTML = `<video src="${currentContent.data.videoUrl}" controls autoplay class="w-full h-full"></video><button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl bg-black bg-opacity-50 rounded-full w-12 h-12">&times;</button>`; playerOverlay.classList.remove('hidden'); }
-        function closePlayer() { playerOverlay.classList.add('hidden'); playerOverlay.innerHTML = ''; clearInterval(slideshowInterval); }
+        
+        function localSlideshow() {
+            currentIndex = 0; isPlaying = true;
+            playerOverlay.innerHTML = `<img id="slideshow-image" src="" class="max-h-full max-w-full object-contain"><button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl">&times;</button><div class="absolute bottom-5 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 p-4 rounded-lg flex items-center space-x-6 text-2xl"><button onclick="prevImage()" class="text-white"><i class="fas fa-backward-step"></i></button><button id="play-pause-btn" onclick="togglePlayPause()" class="text-white"><i class="fas fa-pause"></i></button><button onclick="nextImage()" class="text-white"><i class="fas fa-forward-step"></i></button></div>`;
+            updateSlideshowImage();
+            playerOverlay.classList.remove('hidden');
+            resetInterval();
+        }
+        function localVideoPlayer() {
+            playerOverlay.innerHTML = `<iframe src="${currentContent.data.videoUrl}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen class="w-full h-full"></iframe><button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl bg-black bg-opacity-50 rounded-full w-12 h-12">&times;</button>`;
+            playerOverlay.classList.remove('hidden');
+        }
+        function closePlayer() {
+            playerOverlay.classList.add('hidden');
+            playerOverlay.innerHTML = '';
+            clearInterval(slideshowInterval);
+        }
+
         function updateSlideshowImage() { const img = document.getElementById('slideshow-image'); if(img) img.src = currentContent.data.images[currentIndex]; }
-        function nextImage() { currentIndex = (currentIndex + 1) % currentContent.data.images.length; updateSlideshowImage(); if (isPlaying) resetInterval(); }
-        function prevImage() { currentIndex = (currentIndex - 1 + currentContent.data.images.length) % currentContent.data.images.length; updateSlideshowImage(); if (isPlaying) resetInterval(); }
-        function togglePlayPause() { isPlaying = !isPlaying; document.getElementById('play-pause-btn').querySelector('i').className = isPlaying ? 'fas fa-pause' : 'fas fa-play'; if (isPlaying) resetInterval(); else clearInterval(slideshowInterval); }
+        
+        function nextImage() {
+            if(isCasting() && currentContent.type === 'photos') { cast.framework.CastContext.getInstance().getCurrentSession().getMediaSession().queueNext(); } 
+            else { currentIndex = (currentIndex + 1) % currentContent.data.images.length; updateSlideshowImage(); if (isPlaying) resetInterval(); }
+        }
+        function prevImage() {
+            if(isCasting() && currentContent.type === 'photos') { cast.framework.CastContext.getInstance().getCurrentSession().getMediaSession().queuePrev(); } 
+            else { currentIndex = (currentIndex - 1 + currentContent.data.images.length) % currentContent.data.images.length; updateSlideshowImage(); if (isPlaying) resetInterval(); }
+        }
+        function togglePlayPause() {
+            if(isCasting()) { const playerController = new cast.framework.RemotePlayerController(new cast.framework.RemotePlayer()); playerController.playOrPause(); } 
+            else { isPlaying = !isPlaying; document.getElementById('play-pause-btn').querySelector('i').className = isPlaying ? 'fas fa-pause' : 'fas fa-play'; if (isPlaying) resetInterval(); else clearInterval(slideshowInterval); }
+        }
         function resetInterval() { clearInterval(slideshowInterval); if(isPlaying) slideshowInterval = setInterval(nextImage, 3000); }
-        function castContent() { /* ... Cast logic ... */ }
+        
+        window['__onGCastApiAvailable'] = (isAvailable) => { if (isAvailable) initializeCastApi(); };
+        function initializeCastApi() {
+            cast.framework.CastContext.getInstance().setOptions({ receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
+            const playerController = new cast.framework.RemotePlayerController(new cast.framework.RemotePlayer());
+            playerController.addEventListener(cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED, () => updateCastUI());
+        }
+        function isCasting() {
+            if (typeof cast === 'undefined' || !cast.framework) return false;
+            const session = cast.framework.CastContext.getInstance().getCurrentSession();
+            return session && session.getSessionState() === cast.framework.SessionState.SESSION_STARTED;
+        }
+        function updateCastUI() {
+            const castRemoteOverlay = document.getElementById('cast-remote-overlay');
+            if (isCasting()) {
+                const session = cast.framework.CastContext.getInstance().getCurrentSession();
+                const media = session.getMediaSession();
+                if (media && media.media) {
+                    document.getElementById('cast-album-title').textContent = media.media.metadata.title.split(' - ')[0];
+                    document.getElementById('cast-device-name').textContent = session.getCastDevice().friendlyName;
+                    castRemoteOverlay.classList.remove('hidden');
+                }
+            } else {
+                castRemoteOverlay.classList.add('hidden');
+            }
+        }
+        function castContent() {
+            const session = cast.framework.CastContext.getInstance().getCurrentSession();
+            let request;
+            if (currentContent.type === 'photos') {
+                const queueItems = currentContent.data.images.map((imgUrl, i) => {
+                    const mediaInfo = new chrome.cast.media.MediaInfo(imgUrl, 'image/jpeg');
+                    mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+                    mediaInfo.metadata.title = `${currentContent.data.title} - Photo ${i + 1}`;
+                    const item = new chrome.cast.media.QueueItem(mediaInfo); item.autoplay = true; return item;
+                });
+                request = new chrome.cast.media.QueueLoadRequest(queueItems);
+                request.repeatMode = chrome.cast.media.RepeatMode.ALL;
+            } else {
+                const mediaInfo = new chrome.cast.media.MediaInfo(currentContent.data.videoUrl, 'video/mp4');
+                mediaInfo.metadata = new chrome.cast.media.MovieMediaMetadata();
+                mediaInfo.metadata.title = currentContent.data.title;
+                mediaInfo.metadata.subtitle = currentContent.data.summary;
+                request = new chrome.cast.media.LoadRequest(mediaInfo);
+            }
+            session.loadMedia(request).then(() => { console.log('Média chargé.'); updateCastUI(); }, (err) => console.error(err));
+        }
+        
         function setupHeaderScroll() { window.addEventListener('scroll', () => { document.getElementById('main-header').style.backgroundColor = window.scrollY > 50 ? '#141414' : 'transparent'; }); }
         function setupKeyboardControls() { document.addEventListener('keydown', (e) => { if (playerOverlay.classList.contains('hidden')) return; if (currentContent.type === 'photos') { if (e.key === 'ArrowRight') nextImage(); if (e.key === 'ArrowLeft') prevImage(); if (e.key === ' ') { e.preventDefault(); togglePlayPause(); } } if (e.key === 'Escape') closePlayer(); }); }
-        window['__onGCastApiAvailable'] = (isAvailable) => { if (isAvailable) initializeCastApi(); };
-        function initializeCastApi() { cast.framework.CastContext.getInstance().setOptions({ receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED }); }
     </script>
 </body>
 </html>

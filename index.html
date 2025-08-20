@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <!-- 1. AJOUT DU SCRIPT GOOGLE CAST -->
+    <script type="text/javascript" src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -31,6 +33,12 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Style pour le bouton Caster */
+        google-cast-launcher {
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="text-white">
@@ -39,8 +47,10 @@
     <header class="fixed top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-4 z-50 transition-all duration-300" id="main-header">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-3xl font-bold text-red-600 tracking-wider">PHOTOFLIX</h1>
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-6">
                 <i class="fas fa-search text-xl cursor-pointer"></i>
+                <!-- 2. AJOUT DU BOUTON CASTER -->
+                <google-cast-launcher class="text-2xl"></google-cast-launcher>
                 <i class="fas fa-bell text-xl cursor-pointer"></i>
                 <div class="w-8 h-8 bg-blue-500 rounded-md"></div>
             </div>
@@ -62,7 +72,6 @@
 
         <!-- Album Rows Container -->
         <div id="album-container" class="container mx-auto px-4 lg:px-8 py-8 space-y-12 min-h-[300px] flex items-center justify-center">
-            <!-- Le contenu (chargement, erreur ou albums) sera injecté ici -->
         </div>
     </main>
 
@@ -87,7 +96,7 @@
         </div>
     </div>
 
-    <!-- Slideshow Overlay -->
+    <!-- Slideshow Overlay (pour l'affichage local) -->
     <div id="slideshow-overlay" class="fixed inset-0 z-50 hidden items-center justify-center fade-in">
         <img id="slideshow-image" src="" class="max-h-full max-w-full object-contain">
         <button onclick="closeSlideshow()" class="absolute top-5 right-5 text-white text-4xl">&times;</button>
@@ -104,14 +113,28 @@
         </div>
     </div>
 
+    <!-- Remote Control UI (pour l'affichage pendant le cast) -->
+    <div id="cast-remote-overlay" class="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 z-50 hidden items-center justify-between shadow-lg fade-in">
+        <div class="flex items-center space-x-4">
+            <i class="fas fa-tv text-red-500 text-2xl"></i>
+            <div>
+                <p class="font-bold text-lg" id="cast-album-title">Titre de l'album</p>
+                <p class="text-sm text-gray-400">Diffusion sur <span id="cast-device-name"></span></p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-6 text-2xl">
+             <button onclick="prevImage()" class="text-white"><i class="fas fa-backward-step"></i></button>
+            <button id="cast-play-pause-btn" onclick="togglePlayPause()" class="text-white"><i class="fas fa-pause"></i></button>
+            <button onclick="nextImage()" class="text-white"><i class="fas fa-forward-step"></i></button>
+        </div>
+    </div>
+
+
     <script>
-        // --- URL DE VOTRE API GOOGLE APPS SCRIPT ---
-        // !!! REMPLACEZ CETTE URL PAR CELLE QUE VOUS AVEZ COPIÉE À L'ÉTAPE PRÉCÉDENTE !!!
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz208pvfUdkeiUpbwlqJkWwEHYVYUJV6RA58TYISD4ZRPMFrysEpyhgSIGuCMX8l3yleg/exec";
         
-
         // --- VARIABLES GLOBALES ---
-        let albumsData = {}; // Sera rempli par les données de l'API
+        let albumsData = {};
         let currentAlbumImages = [];
         let currentIndex = 0;
         let slideshowInterval;
@@ -120,7 +143,61 @@
         const albumContainer = document.getElementById('album-container');
         const modal = document.getElementById('details-modal');
         const slideshowOverlay = document.getElementById('slideshow-overlay');
+        const castRemoteOverlay = document.getElementById('cast-remote-overlay');
         
+        // --- 3. INITIALISATION DU FRAMEWORK CAST ---
+        window['__onGCastApiAvailable'] = function(isAvailable) {
+            if (isAvailable) {
+                initializeCastApi();
+            }
+        };
+
+        function initializeCastApi() {
+            const castContext = cast.framework.CastContext.getInstance();
+            castContext.setOptions({
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+            
+            const player = new cast.framework.RemotePlayer();
+            const playerController = new cast.framework.RemotePlayerController(player);
+            
+            playerController.addEventListener(
+                cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+                () => {
+                    updateCastUI();
+                }
+            );
+             playerController.addEventListener(
+                cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED,
+                () => {
+                    const playPauseIcon = document.getElementById('cast-play-pause-btn').querySelector('i');
+                    playPauseIcon.className = player.isPaused ? 'fas fa-play' : 'fas fa-pause';
+                }
+            );
+        }
+        
+        function isCasting() {
+            const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
+            return castSession && castSession.getSessionState() === cast.framework.SessionState.SESSION_STARTED;
+        }
+
+        function updateCastUI() {
+            if (isCasting()) {
+                const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
+                const media = castSession.getMediaSession();
+                if (media && media.media) {
+                    document.getElementById('cast-album-title').textContent = media.media.metadata.title;
+                    document.getElementById('cast-device-name').textContent = castSession.getCastDevice().friendlyName;
+                    castRemoteOverlay.classList.remove('hidden');
+                    castRemoteOverlay.classList.add('flex');
+                }
+            } else {
+                castRemoteOverlay.classList.add('hidden');
+                castRemoteOverlay.classList.remove('flex');
+            }
+        }
+
         // --- INITIALISATION DE L'APPLICATION ---
         document.addEventListener('DOMContentLoaded', () => {
             loadAlbums();
@@ -129,52 +206,39 @@
             setupTouchControls();
         });
 
-        function showLoader() {
-            albumContainer.innerHTML = '<div class="loader"></div>';
-        }
-
-        function showError(message) {
-            albumContainer.innerHTML = `<div class="text-center text-red-500"><h2 class="text-2xl font-bold mb-2">Erreur de chargement</h2><p>${message}</p><p class="mt-4 text-sm text-gray-400">Vérifiez l'URL du script, les autorisations de partage de votre dossier Google Drive et la structure de votre fichier Résumé.txt.</p></div>`;
-            document.getElementById('hero-section').style.display = 'none';
-        }
-
         async function loadAlbums() {
-            showLoader();
+            albumContainer.innerHTML = '<div class="loader"></div>';
             try {
                 const response = await fetch(SCRIPT_URL);
-                if (!response.ok) {
-                    throw new Error(`Erreur réseau: ${response.statusText}`);
-                }
+                if (!response.ok) throw new Error(`Erreur réseau: ${response.statusText}`);
                 const data = await response.json();
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                if (Object.keys(data).length === 0) {
-                    throw new Error("Aucun album n'a été trouvé. Vérifiez vos dossiers et le fichier Résumé.txt.");
-                }
+                if (data.error) throw new Error(data.error);
+                if (Object.keys(data).length === 0) throw new Error("Aucun album n'a été trouvé.");
 
                 albumsData = data;
-                albumContainer.innerHTML = ''; // Vider le loader
+                albumContainer.innerHTML = '';
                 albumContainer.classList.remove('flex', 'items-center', 'justify-center');
                 populateAlbums();
                 setupHero();
-
             } catch (error) {
                 console.error("Impossible de charger les albums:", error);
                 showError(error.message);
             }
         }
+        
+        function showError(message) {
+            albumContainer.innerHTML = `<div class="text-center text-red-500"><h2 class="text-2xl font-bold mb-2">Erreur de chargement</h2><p>${message}</p><p class="mt-4 text-sm text-gray-400">Vérifiez l'URL du script, les autorisations de partage de votre dossier Google Drive et la structure de votre fichier Résumé.txt.</p></div>`;
+            document.getElementById('hero-section').style.display = 'none';
+        }
 
         function populateAlbums() {
+            // ... (code inchangé)
             const categories = [...new Set(Object.values(albumsData).map(a => a.category))];
-            
             categories.forEach(category => {
                 const row = document.createElement('div');
                 row.innerHTML = `<h2 class="text-2xl font-bold mb-4">${category}</h2>`;
-                
                 const scrollContainer = document.createElement('div');
                 scrollContainer.className = 'flex overflow-x-auto space-x-4 pb-4 album-row';
-                
                 Object.entries(albumsData).forEach(([title, data]) => {
                     if (data.category === category) {
                         const card = document.createElement('div');
@@ -184,13 +248,13 @@
                         scrollContainer.appendChild(card);
                     }
                 });
-                
                 row.appendChild(scrollContainer);
                 albumContainer.appendChild(row);
             });
         }
 
         function setupHero() {
+            // ... (code inchangé)
             const heroAlbumTitle = Object.keys(albumsData)[0];
             if (!heroAlbumTitle) return;
             const heroAlbumData = albumsData[heroAlbumTitle];
@@ -201,18 +265,15 @@
         }
 
         function setupHeaderScroll() {
+            // ... (code inchangé)
             const header = document.getElementById('main-header');
             window.addEventListener('scroll', () => {
-                if (window.scrollY > 50) {
-                    header.style.backgroundColor = '#141414';
-                } else {
-                    header.style.backgroundColor = 'transparent';
-                }
+                header.style.backgroundColor = window.scrollY > 50 ? '#141414' : 'transparent';
             });
         }
 
-        // --- GESTION DU MODAL ---
         function openModal(albumTitle) {
+            // ... (code inchangé)
             const data = albumsData[albumTitle];
             document.getElementById('modal-img').src = data.images[0];
             document.getElementById('modal-title').textContent = albumTitle;
@@ -231,8 +292,44 @@
             document.body.style.overflow = 'auto';
         }
 
-        // --- GESTION DU DIAPORAMA ---
+        // --- 4. MISE À JOUR DE LA LOGIQUE DU DIAPORAMA ---
         function startSlideshow(albumTitle) {
+            if (isCasting()) {
+                castSlideshow(albumTitle);
+            } else {
+                localSlideshow(albumTitle);
+            }
+        }
+        
+        function castSlideshow(albumTitle) {
+            const album = albumsData[albumTitle];
+            const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
+
+            const queueItems = album.images.map((imgUrl, index) => {
+                const mediaInfo = new chrome.cast.media.MediaInfo(imgUrl, 'image/jpeg');
+                mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+                mediaInfo.metadata.title = `${albumTitle} - Photo ${index + 1}`;
+                mediaInfo.metadata.subtitle = album.summary;
+                mediaInfo.metadata.images = [new chrome.cast.Image(imgUrl)];
+                
+                const item = new chrome.cast.media.QueueItem(mediaInfo);
+                item.autoplay = true;
+                return item;
+            });
+            
+            const request = new chrome.cast.media.QueueLoadRequest(queueItems);
+            request.repeatMode = chrome.cast.media.RepeatMode.ALL; // Boucle sur les photos
+            
+            castSession.loadMedia(request).then(
+                () => { 
+                    console.log('Diaporama chargé sur le Chromecast.');
+                    updateCastUI();
+                },
+                (errorCode) => { console.error('Erreur de chargement du média:', errorCode); }
+            );
+        }
+
+        function localSlideshow(albumTitle) {
             currentAlbumImages = albumsData[albumTitle].images;
             currentIndex = 0;
             isPlaying = true;
@@ -260,26 +357,40 @@
         }
 
         function nextImage() {
-            currentIndex = (currentIndex + 1) % currentAlbumImages.length;
-            updateSlideshowImage();
-            if (isPlaying) resetInterval();
+            if(isCasting()) {
+                 cast.framework.CastContext.getInstance().getCurrentSession().getMediaSession().queueNext();
+            } else {
+                currentIndex = (currentIndex + 1) % currentAlbumImages.length;
+                updateSlideshowImage();
+                if (isPlaying) resetInterval();
+            }
         }
 
         function prevImage() {
-            currentIndex = (currentIndex - 1 + currentAlbumImages.length) % currentAlbumImages.length;
-            updateSlideshowImage();
-            if (isPlaying) resetInterval();
+            if(isCasting()) {
+                cast.framework.CastContext.getInstance().getCurrentSession().getMediaSession().queuePrev();
+            } else {
+                currentIndex = (currentIndex - 1 + currentAlbumImages.length) % currentAlbumImages.length;
+                updateSlideshowImage();
+                if (isPlaying) resetInterval();
+            }
         }
 
         function togglePlayPause() {
-            isPlaying = !isPlaying;
-            const icon = document.getElementById('play-pause-btn').querySelector('i');
-            if (isPlaying) {
-                icon.className = 'fas fa-pause';
-                resetInterval();
+            if(isCasting()) {
+                const player = new cast.framework.RemotePlayer();
+                const playerController = new cast.framework.RemotePlayerController(player);
+                playerController.playOrPause();
             } else {
-                icon.className = 'fas fa-play';
-                clearInterval(slideshowInterval);
+                isPlaying = !isPlaying;
+                const icon = document.getElementById('play-pause-btn').querySelector('i');
+                if (isPlaying) {
+                    icon.className = 'fas fa-pause';
+                    resetInterval();
+                } else {
+                    icon.className = 'fas fa-play';
+                    clearInterval(slideshowInterval);
+                }
             }
         }
 
@@ -293,18 +404,18 @@
         
         document.getElementById('speed-slider').addEventListener('input', resetInterval);
 
-        // --- CONTRÔLES ---
         function setupKeyboardControls() {
             document.addEventListener('keydown', (e) => {
-                if (!slideshowOverlay.classList.contains('flex')) return;
+                if (!slideshowOverlay.classList.contains('flex') && !isCasting()) return;
                 if (e.key === 'ArrowRight') nextImage();
                 if (e.key === 'ArrowLeft') prevImage();
                 if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
-                if (e.key === 'Escape') closeSlideshow();
+                if (e.key === 'Escape' && !isCasting()) closeSlideshow();
             });
         }
-
+        
         function setupTouchControls() {
+            // ... (code inchangé)
             let touchstartX = 0;
             let touchendX = 0;
             slideshowOverlay.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true });

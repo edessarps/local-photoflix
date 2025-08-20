@@ -60,24 +60,40 @@
     <div id="app-container" class="hidden">
         <header class="fixed top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-4 z-50 transition-all duration-300" id="main-header">
             <div class="container mx-auto flex justify-between items-center">
-                <div class="flex items-center space-x-8">
-                    <h1 class="text-3xl font-bold text-red-600 tracking-wider">PHOTOFLIX</h1>
+                <div class="flex items-center space-x-4 md:space-x-8">
+                    <h1 class="text-2xl md:text-3xl font-bold text-red-600 tracking-wider">PHOTOFLIX</h1>
+                    <!-- Menu Desktop -->
                     <nav class="hidden md:flex items-center space-x-6 text-lg">
                         <a href="#" id="nav-photos" class="nav-link active" onclick="switchView('photos')">Photos</a>
                         <a href="#" id="nav-films" class="nav-link" onclick="switchView('films')">Films</a>
                     </nav>
                 </div>
-                <div class="flex items-center space-x-6">
+                <div class="flex items-center space-x-4 md:space-x-6">
                     <google-cast-launcher class="text-2xl"></google-cast-launcher>
                     <div class="w-8 h-8 bg-blue-500 rounded-md"></div>
+                    <!-- Bouton Menu Burger -->
+                    <button class="md:hidden text-2xl" onclick="toggleMobileMenu()">
+                        <i class="fas fa-bars"></i>
+                    </button>
                 </div>
             </div>
         </header>
 
+        <!-- Menu Mobile -->
+        <div id="mobile-menu" class="hidden fixed inset-0 bg-black bg-opacity-90 z-[90] flex flex-col items-center justify-center space-y-8 text-2xl">
+            <button class="absolute top-5 right-5 text-4xl" onclick="toggleMobileMenu()">&times;</button>
+            <a href="#" class="nav-link-mobile" onclick="switchView('photos'); toggleMobileMenu();">Photos</a>
+            <a href="#" class="nav-link-mobile" onclick="switchView('films'); toggleMobileMenu();">Films</a>
+        </div>
+
         <main id="main-content">
-            <section id="hero-section" class="h-screen/2 lg:h-[75vh] bg-cover bg-center flex items-end p-8 lg:p-16 text-white shadow-lg relative">
+            <section id="hero-section" class="h-[50vh] md:h-[75vh] bg-cover bg-center flex items-end p-4 md:p-8 lg:p-16 text-white shadow-lg relative">
                  <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
-                <div class="z-10 relative"><h2 id="hero-title" class="text-4xl lg:text-6xl font-black mb-4 max-w-2xl"></h2><p id="hero-summary" class="text-lg mb-6 max-w-2xl"></p><button id="hero-play-btn" class="bg-white text-black px-8 py-3 rounded-md font-bold text-lg hover:bg-gray-200 transition-colors flex items-center gap-2"><i class="fas fa-play"></i> Lancer</button></div>
+                <div class="z-10 relative">
+                    <h2 id="hero-title" class="text-3xl md:text-4xl lg:text-6xl font-black mb-4 max-w-2xl"></h2>
+                    <p id="hero-summary" class="text-base md:text-lg mb-6 max-w-2xl hidden sm:block"></p>
+                    <button id="hero-play-btn" class="bg-white text-black px-6 py-2 md:px-8 md:py-3 rounded-md font-bold text-base md:text-lg hover:bg-gray-200 transition-colors flex items-center gap-2"><i class="fas fa-play"></i> Lancer</button>
+                </div>
             </section>
 
             <div id="photos-view" class="container mx-auto px-4 lg:px-8 py-8 space-y-12"></div>
@@ -101,7 +117,6 @@
 
     <script>
         const SCRIPT_URL_BASE = "https://script.google.com/macros/s/AKfycbz208pvfUdkeiUpbwlqJkWwEHYVYUJV6RA58TYISD4ZRPMFrysEpyhgSIGuCMX8l3yleg/exec";
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=`;
         const CORRECT_PASSWORD = "netflixelie";
 
         let photosData = {}, filmsData = {}, currentView = 'photos';
@@ -113,6 +128,7 @@
         const filmsView = document.getElementById('films-view');
         const modalContainer = document.getElementById('details-modal');
         const playerOverlay = document.getElementById('player-overlay');
+        const mobileMenu = document.getElementById('mobile-menu');
         
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
@@ -148,6 +164,10 @@
 
         function startApp() { loadPhotos(); setupHeaderScroll(); setupKeyboardControls(); }
 
+        function toggleMobileMenu() {
+            mobileMenu.classList.toggle('hidden');
+        }
+
         function showError(message, viewElement) {
             let advice = "Veuillez vérifier votre connexion internet et l'URL de votre script Google.";
             if (message.includes("Impossible de lire le fichier")) { advice = "L'erreur vient de votre script Google. Assurez-vous que les fichiers 'photos.json' et 'films.json' existent dans les bons dossiers ('PHOTOS' et 'FILM') et que leur contenu est un JSON valide."; }
@@ -166,28 +186,18 @@
             } catch (error) { console.error(`Impossible de charger la section ${section}:`, error); showError(error.message, view); return null; }
         }
         async function loadPhotos() { const data = await fetchData('photos'); if (data) { photosData = data; populatePhotos(); setupHero(Object.keys(photosData)[0], 'photos'); } }
+        
         async function loadFilms() {
             const data = await fetchData('films');
             if (data) {
-                filmsView.innerHTML = '<div class="w-full flex justify-center"><div class="loader"></div></div>';
-                const enrichedData = {};
-                for (const id in data) { const film = data[id]; const geminiData = await getGeminiFilmInfo(film.title); enrichedData[id] = { ...film, ...geminiData }; }
-                filmsData = enrichedData; 
+                filmsData = data;
                 populateFilms();
                 if (currentView === 'films') {
                     setupHero(Object.keys(filmsData)[0], 'films');
                 }
             }
         }
-        async function getGeminiFilmInfo(title) {
-            const prompt = `Fournis les informations pour le film "${title}" au format JSON : un résumé court (summary), l'année de sortie (year), les 3 acteurs principaux (actors), le réalisateur (director), le genre (genre), et une URL HTTPS valide vers une affiche du film de bonne qualité (posterUrl). Si le film est introuvable, retourne des champs vides.`;
-            try {
-                const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { summary: { "type": "STRING" }, year: { "type": "NUMBER" }, actors: { "type": "ARRAY", "items": { "type": "STRING" } }, director: { "type": "STRING" }, genre: { "type": "STRING" }, posterUrl: { "type": "STRING" } } } } };
-                const response = await fetch(GEMINI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) return {};
-                const result = await response.json(); const jsonText = result.candidates[0].content.parts[0].text; return JSON.parse(jsonText);
-            } catch (error) { console.error("Erreur Gemini:", error); return {}; }
-        }
+
         function switchView(view) {
             currentView = view;
             document.getElementById('nav-photos').classList.toggle('active', view === 'photos'); document.getElementById('nav-films').classList.toggle('active', view === 'films');
@@ -207,7 +217,7 @@
                 const container = row.querySelector('.album-row');
                 Object.entries(photosData).forEach(([id, data]) => {
                     if (data.category === category) {
-                        const card = document.createElement('div'); card.className = 'flex-shrink-0 w-64 h-36 bg-gray-700 rounded-lg overflow-hidden cursor-pointer item-card';
+                        const card = document.createElement('div'); card.className = 'flex-shrink-0 w-48 sm:w-64 h-28 sm:h-36 bg-gray-700 rounded-lg overflow-hidden cursor-pointer item-card';
                         card.innerHTML = `<img src="${data.images[0]}" alt="${data.title}" class="w-full h-full object-cover">`; card.onclick = () => openModal(id, 'photos'); container.appendChild(card);
                     }
                 });
@@ -216,7 +226,7 @@
         }
         function populateFilms() {
             filmsView.innerHTML = ''; const row = document.createElement('div');
-            row.innerHTML = `<h2 class="text-2xl font-bold mb-4">Tous les films</h2><div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>`;
+            row.innerHTML = `<h2 class="text-2xl font-bold mb-4">Tous les films</h2><div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>`;
             const container = row.querySelector('.grid');
             Object.entries(filmsData).forEach(([id, data]) => {
                 const card = document.createElement('div'); card.className = 'aspect-[2/3] bg-gray-800 rounded-lg overflow-hidden cursor-pointer item-card';
@@ -236,8 +246,8 @@
         }
         function openModal(id, type) {
             const data = (type === 'photos' ? photosData[id] : filmsData[id]); let modalHTML = '';
-            if (type === 'photos') { modalHTML = `<div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden"><div class="relative"><img src="${data.images[0]}" class="w-full h-96 object-cover"><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button><h3 class="absolute bottom-0 p-8 text-4xl font-bold">${data.title}</h3></div><div class="p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year}</span></div><p class="mb-4">${data.summary}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.people}</p><button onclick="playFromModal('${id}', 'photos')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div></div>`; }
-            else { const placeholder = `https://placehold.co/800x450/1f2937/ffffff?text=${encodeURIComponent(data.title)}`; modalHTML = `<div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden"><div class="relative"><img src="${data.posterUrl || placeholder}" class="w-full h-96 object-cover"><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button><h3 class="absolute bottom-0 p-8 text-4xl font-bold">${data.title}</h3></div><div class="p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year || ''}</span><span class="text-gray-400">${data.genre || ''}</span></div><p class="mb-4">${data.summary || 'Résumé non disponible.'}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.actors ? data.actors.join(', ') : 'N/A'}</p><p class="text-gray-400 mt-2"><strong>Réalisateur :</strong> ${data.director || 'N/A'}</p><button onclick="playFromModal('${id}', 'films')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div></div>`; }
+            if (type === 'photos') { modalHTML = `<div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden"><div class="relative"><img src="${data.images[0]}" class="w-full h-96 object-cover"><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button><h3 class="absolute bottom-0 p-4 sm:p-8 text-2xl sm:text-4xl font-bold">${data.title}</h3></div><div class="p-4 sm:p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year}</span></div><p class="mb-4">${data.summary}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.people}</p><button onclick="playFromModal('${id}', 'photos')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div></div>`; }
+            else { const placeholder = `https://placehold.co/800x450/1f2937/ffffff?text=${encodeURIComponent(data.title)}`; modalHTML = `<div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden"><div class="relative"><img src="${data.posterUrl || placeholder}" class="w-full h-96 object-cover"><div class="absolute inset-0 bg-gradient-to-t from-gray-800"></div><button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8">&times;</button><h3 class="absolute bottom-0 p-4 sm:p-8 text-2xl sm:text-4xl font-bold">${data.title}</h3></div><div class="p-4 sm:p-8"><div class="flex items-center space-x-4 mb-4 text-lg"><span class="font-semibold text-gray-300">${data.year || ''}</span><span class="text-gray-400">${data.genre || ''}</span></div><p class="mb-4">${data.summary || 'Résumé non disponible.'}</p><p class="text-gray-400"><strong>Avec :</strong> ${data.actors ? data.actors.join(', ') : 'N/A'}</p><p class="text-gray-400 mt-2"><strong>Réalisateur :</strong> ${data.director || 'N/A'}</p><button onclick="playFromModal('${id}', 'films')" class="mt-6 bg-red-600 px-8 py-3 rounded-md font-bold text-lg">Lancer</button></div></div>`; }
             modalContainer.innerHTML = modalHTML; modalContainer.classList.remove('hidden');
         }
         function playFromModal(id, type) { closeModal(); playContent(id, type); }
@@ -252,7 +262,7 @@
             resetInterval();
         }
         function localVideoPlayer() {
-            playerOverlay.innerHTML = `<iframe src="${currentContent.data.videoUrl}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen class="w-full h-full"></iframe><button onclick="closePlayer()" class="absolute top-5 right-5 text-white text-4xl bg-black bg-opacity-50 rounded-full w-12 h-12">&times;</button>`;
+            playerOverlay.innerHTML = `<iframe src="${currentContent.data.videoUrl}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen class="w-full h-full"></iframe><button onclick="closePlayer()" class="absolute top-5 left-5 text-white text-4xl bg-black bg-opacity-50 rounded-full w-12 h-12">&times;</button>`;
             playerOverlay.classList.remove('hidden');
         }
         function closePlayer() {

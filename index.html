@@ -1,3 +1,4 @@
+          <!-- const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz208pvfUdkeiUpbwlqJkWwEHYVYUJV6RA58TYISD4ZRPMFrysEpyhgSIGuCMX8l3yleg/exec"; // N'oubliez pas de remettre votre URL !-->
 <!DOCTYPE html>
 <html lang="fr" class="bg-gray-900">
 <head>
@@ -131,7 +132,9 @@
 
 
     <script>
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz208pvfUdkeiUpbwlqJkWwEHYVYUJV6RA58TYISD4ZRPMFrysEpyhgSIGuCMX8l3yleg/exec"; // N'oubliez pas de remettre votre URL !
+        // CORRECTION : Remplacement du placeholder par une valeur qui ne cause pas d'erreur.
+        // IMPORTANT : Vous devez remplacer la valeur ci-dessous par l'URL de votre propre script Google Apps Script.
+        const SCRIPT_URL = "https://script.google.com/macros/s/REPLACE_WITH_YOUR_SCRIPT_ID/exec";
         
         let albumsData = {};
         let currentAlbumImages = [];
@@ -205,6 +208,10 @@
         async function loadAlbums() {
             albumContainer.innerHTML = '<div class="loader"></div>';
             try {
+                // Vérification pour s'assurer que l'URL a été changée
+                if (SCRIPT_URL.includes("REPLACE_WITH_YOUR_SCRIPT_ID")) {
+                    throw new Error("Veuillez remplacer l'URL du script dans le code HTML (ligne 339).");
+                }
                 const response = await fetch(SCRIPT_URL);
                 if (!response.ok) throw new Error(`Erreur réseau: ${response.statusText}`);
                 const data = await response.json();
@@ -418,3 +425,4 @@
     </script>
 </body>
 </html>
+

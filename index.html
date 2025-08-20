@@ -1,15 +1,319 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" class="bg-gray-900">
 <head>
-  <meta charset="UTF-8">
-  <title>Photosflix Local</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photoflix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #141414;
+            color: #e5e5e5;
+        }
+        .album-row::-webkit-scrollbar { display: none; }
+        .album-row { -ms-overflow-style: none; scrollbar-width: none; }
+        .album-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .album-card:hover { transform: scale(1.05); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        #slideshow-overlay { background-color: rgba(0, 0, 0, 0.95); }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .slide-in { animation: slideIn 0.5s ease-in-out; }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #e50914;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
-<body>
-  <h1>📸 Photosflix (Local)</h1>
-  <button id="chooseDir">Choisir un dossier…</button>
-  <div id="albums"></div>
+<body class="text-white">
 
-  <script src="app.js"></script>
+    <!-- Header -->
+    <header class="fixed top-0 left-0 right-0 bg-gradient-to-b from-black to-transparent p-4 z-50 transition-all duration-300" id="main-header">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-red-600 tracking-wider">PHOTOFLIX</h1>
+            <div class="flex items-center space-x-4">
+                <i class="fas fa-search text-xl cursor-pointer"></i>
+                <i class="fas fa-bell text-xl cursor-pointer"></i>
+                <div class="w-8 h-8 bg-blue-500 rounded-md"></div>
+            </div>
+        </div>
+    </header>
+
+    <main id="main-content">
+        <!-- Hero Section -->
+        <section id="hero-section" class="h-screen/2 lg:h-[75vh] bg-cover bg-center flex items-end p-8 lg:p-16 text-white shadow-lg relative">
+             <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
+            <div class="z-10 relative">
+                <h2 id="hero-title" class="text-4xl lg:text-6xl font-black mb-4 max-w-2xl"></h2>
+                <p id="hero-summary" class="text-lg mb-6 max-w-2xl"></p>
+                <button id="hero-play-btn" class="bg-white text-black px-8 py-3 rounded-md font-bold text-lg hover:bg-gray-200 transition-colors flex items-center gap-2">
+                    <i class="fas fa-play"></i> Lancer
+                </button>
+            </div>
+        </section>
+
+        <!-- Album Rows Container -->
+        <div id="album-container" class="container mx-auto px-4 lg:px-8 py-8 space-y-12 min-h-[300px] flex items-center justify-center">
+            <!-- Le contenu (chargement, erreur ou albums) sera injecté ici -->
+        </div>
+    </main>
+
+    <!-- Album Details Modal -->
+    <div id="details-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 hidden fade-in">
+        <div class="bg-gray-800 rounded-lg max-w-3xl w-11/12 mx-auto overflow-hidden slide-in">
+            <div class="relative">
+                <img id="modal-img" src="" alt="Album cover" class="w-full h-96 object-cover">
+                <div class="absolute inset-0 bg-gradient-to-t from-gray-800 to-transparent"></div>
+                <button onclick="closeModal()" class="absolute top-4 right-4 text-white bg-gray-900 rounded-full w-8 h-8 flex items-center justify-center text-xl">&times;</button>
+                <div class="absolute bottom-0 p-8">
+                    <h3 id="modal-title" class="text-4xl font-bold"></h3>
+                </div>
+            </div>
+            <div class="p-8">
+                <p id="modal-summary" class="mb-4"></p>
+                <p class="text-gray-400"><strong>Avec :</strong> <span id="modal-people"></span></p>
+                <button id="modal-play-btn" class="mt-6 bg-red-600 text-white px-8 py-3 rounded-md font-bold text-lg hover:bg-red-700 transition-colors flex items-center gap-2">
+                    <i class="fas fa-play"></i> Lancer le diaporama
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slideshow Overlay -->
+    <div id="slideshow-overlay" class="fixed inset-0 z-50 hidden items-center justify-center fade-in">
+        <img id="slideshow-image" src="" class="max-h-full max-w-full object-contain">
+        <button onclick="closeSlideshow()" class="absolute top-5 right-5 text-white text-4xl">&times;</button>
+        <button onclick="prevImage()" class="absolute left-5 top-1/2 -translate-y-1/2 text-white text-4xl bg-black bg-opacity-50 p-2 rounded-full"><i class="fas fa-chevron-left"></i></button>
+        <button onclick="nextImage()" class="absolute right-5 top-1/2 -translate-y-1/2 text-white text-4xl bg-black bg-opacity-50 p-2 rounded-full"><i class="fas fa-chevron-right"></i></button>
+        <div class="absolute bottom-5 left-1/2 -translate-x-1/2 bg-black bg-opacity-50 p-4 rounded-lg flex items-center space-x-6 text-2xl">
+            <button onclick="prevImage()" class="text-white"><i class="fas fa-backward-step"></i></button>
+            <button id="play-pause-btn" onclick="togglePlayPause()" class="text-white"><i class="fas fa-pause"></i></button>
+            <button onclick="nextImage()" class="text-white"><i class="fas fa-forward-step"></i></button>
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-tachometer-alt"></i>
+                <input type="range" id="speed-slider" min="1000" max="10000" value="3000" step="500" class="w-24">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- URL DE VOTRE API GOOGLE APPS SCRIPT ---
+        // !!! REMPLACEZ CETTE URL PAR CELLE QUE VOUS AVEZ COPIÉE À L'ÉTAPE PRÉCÉDENTE !!!
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz208pvfUdkeiUpbwlqJkWwEHYVYUJV6RA58TYISD4ZRPMFrysEpyhgSIGuCMX8l3yleg/exec";
+        
+
+        // --- VARIABLES GLOBALES ---
+        let albumsData = {}; // Sera rempli par les données de l'API
+        let currentAlbumImages = [];
+        let currentIndex = 0;
+        let slideshowInterval;
+        let isPlaying = true;
+        
+        const albumContainer = document.getElementById('album-container');
+        const modal = document.getElementById('details-modal');
+        const slideshowOverlay = document.getElementById('slideshow-overlay');
+        
+        // --- INITIALISATION DE L'APPLICATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAlbums();
+            setupHeaderScroll();
+            setupKeyboardControls();
+            setupTouchControls();
+        });
+
+        function showLoader() {
+            albumContainer.innerHTML = '<div class="loader"></div>';
+        }
+
+        function showError(message) {
+            albumContainer.innerHTML = `<div class="text-center text-red-500"><h2 class="text-2xl font-bold mb-2">Erreur de chargement</h2><p>${message}</p><p class="mt-4 text-sm text-gray-400">Vérifiez l'URL du script, les autorisations de partage de votre dossier Google Drive et la structure de votre fichier Résumé.txt.</p></div>`;
+            document.getElementById('hero-section').style.display = 'none';
+        }
+
+        async function loadAlbums() {
+            showLoader();
+            try {
+                const response = await fetch(SCRIPT_URL);
+                if (!response.ok) {
+                    throw new Error(`Erreur réseau: ${response.statusText}`);
+                }
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                if (Object.keys(data).length === 0) {
+                    throw new Error("Aucun album n'a été trouvé. Vérifiez vos dossiers et le fichier Résumé.txt.");
+                }
+
+                albumsData = data;
+                albumContainer.innerHTML = ''; // Vider le loader
+                albumContainer.classList.remove('flex', 'items-center', 'justify-center');
+                populateAlbums();
+                setupHero();
+
+            } catch (error) {
+                console.error("Impossible de charger les albums:", error);
+                showError(error.message);
+            }
+        }
+
+        function populateAlbums() {
+            const categories = [...new Set(Object.values(albumsData).map(a => a.category))];
+            
+            categories.forEach(category => {
+                const row = document.createElement('div');
+                row.innerHTML = `<h2 class="text-2xl font-bold mb-4">${category}</h2>`;
+                
+                const scrollContainer = document.createElement('div');
+                scrollContainer.className = 'flex overflow-x-auto space-x-4 pb-4 album-row';
+                
+                Object.entries(albumsData).forEach(([title, data]) => {
+                    if (data.category === category) {
+                        const card = document.createElement('div');
+                        card.className = 'flex-shrink-0 w-64 h-36 bg-gray-700 rounded-lg overflow-hidden cursor-pointer album-card';
+                        card.innerHTML = `<img src="${data.images[0]}" alt="${title}" class="w-full h-full object-cover">`;
+                        card.onclick = () => openModal(title);
+                        scrollContainer.appendChild(card);
+                    }
+                });
+                
+                row.appendChild(scrollContainer);
+                albumContainer.appendChild(row);
+            });
+        }
+
+        function setupHero() {
+            const heroAlbumTitle = Object.keys(albumsData)[0];
+            if (!heroAlbumTitle) return;
+            const heroAlbumData = albumsData[heroAlbumTitle];
+            document.getElementById('hero-section').style.backgroundImage = `url('${heroAlbumData.images[1] || heroAlbumData.images[0]}')`;
+            document.getElementById('hero-title').textContent = heroAlbumTitle;
+            document.getElementById('hero-summary').textContent = heroAlbumData.summary.substring(0, 150) + '...';
+            document.getElementById('hero-play-btn').onclick = () => startSlideshow(heroAlbumTitle);
+        }
+
+        function setupHeaderScroll() {
+            const header = document.getElementById('main-header');
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 50) {
+                    header.style.backgroundColor = '#141414';
+                } else {
+                    header.style.backgroundColor = 'transparent';
+                }
+            });
+        }
+
+        // --- GESTION DU MODAL ---
+        function openModal(albumTitle) {
+            const data = albumsData[albumTitle];
+            document.getElementById('modal-img').src = data.images[0];
+            document.getElementById('modal-title').textContent = albumTitle;
+            document.getElementById('modal-summary').textContent = data.summary;
+            document.getElementById('modal-people').textContent = data.people;
+            document.getElementById('modal-play-btn').onclick = () => {
+                closeModal();
+                startSlideshow(albumTitle);
+            };
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // --- GESTION DU DIAPORAMA ---
+        function startSlideshow(albumTitle) {
+            currentAlbumImages = albumsData[albumTitle].images;
+            currentIndex = 0;
+            isPlaying = true;
+            updateSlideshowImage();
+            slideshowOverlay.classList.remove('hidden');
+            slideshowOverlay.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+            resetInterval();
+        }
+
+        function closeSlideshow() {
+            slideshowOverlay.classList.add('hidden');
+            slideshowOverlay.classList.remove('flex');
+            document.body.style.overflow = 'auto';
+            clearInterval(slideshowInterval);
+        }
+
+        function updateSlideshowImage() {
+            const imgElement = document.getElementById('slideshow-image');
+            imgElement.style.opacity = 0;
+            setTimeout(() => {
+                imgElement.src = currentAlbumImages[currentIndex];
+                imgElement.style.opacity = 1;
+            }, 300);
+        }
+
+        function nextImage() {
+            currentIndex = (currentIndex + 1) % currentAlbumImages.length;
+            updateSlideshowImage();
+            if (isPlaying) resetInterval();
+        }
+
+        function prevImage() {
+            currentIndex = (currentIndex - 1 + currentAlbumImages.length) % currentAlbumImages.length;
+            updateSlideshowImage();
+            if (isPlaying) resetInterval();
+        }
+
+        function togglePlayPause() {
+            isPlaying = !isPlaying;
+            const icon = document.getElementById('play-pause-btn').querySelector('i');
+            if (isPlaying) {
+                icon.className = 'fas fa-pause';
+                resetInterval();
+            } else {
+                icon.className = 'fas fa-play';
+                clearInterval(slideshowInterval);
+            }
+        }
+
+        function resetInterval() {
+            clearInterval(slideshowInterval);
+            const speed = document.getElementById('speed-slider').value;
+            if(isPlaying) {
+                slideshowInterval = setInterval(nextImage, speed);
+            }
+        }
+        
+        document.getElementById('speed-slider').addEventListener('input', resetInterval);
+
+        // --- CONTRÔLES ---
+        function setupKeyboardControls() {
+            document.addEventListener('keydown', (e) => {
+                if (!slideshowOverlay.classList.contains('flex')) return;
+                if (e.key === 'ArrowRight') nextImage();
+                if (e.key === 'ArrowLeft') prevImage();
+                if (e.key === ' ') { e.preventDefault(); togglePlayPause(); }
+                if (e.key === 'Escape') closeSlideshow();
+            });
+        }
+
+        function setupTouchControls() {
+            let touchstartX = 0;
+            let touchendX = 0;
+            slideshowOverlay.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; }, { passive: true });
+            slideshowOverlay.addEventListener('touchend', e => { touchendX = e.changedTouches[0].screenX; handleSwipe(); }, { passive: true });
+            function handleSwipe() {
+                if (touchendX < touchstartX) nextImage();
+                if (touchendX > touchstartX) prevImage();
+            }
+        }
+    </script>
 </body>
 </html>
